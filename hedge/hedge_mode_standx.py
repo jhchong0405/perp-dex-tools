@@ -34,16 +34,15 @@ class Config:
 class HedgeBot:
     """Trading bot that places post-only orders on StandX and hedges with market orders on Lighter."""
 
-    # StandX offset: 9 basis points (bps) from BBO
-    STANDX_OFFSET_BPS = Decimal('0.0009')  # 9 bps = 0.09%
-
     def __init__(self, ticker: str, order_quantity: Decimal, fill_timeout: int = 5, 
-                 iterations: int = 20, sleep_time: int = 0, max_position: Decimal = Decimal('0')):
+                 iterations: int = 20, sleep_time: int = 0, max_position: Decimal = Decimal('0'),
+                 offset_bps: int = 9):
         self.ticker = ticker
         self.order_quantity = order_quantity
         self.fill_timeout = fill_timeout
         self.iterations = iterations
         self.sleep_time = sleep_time
+        self.offset_bps = Decimal(str(offset_bps)) / Decimal('10000')  # Convert bps to decimal
         if max_position == Decimal('0'):
             self.max_position = order_quantity
         else:
@@ -464,9 +463,9 @@ class HedgeBot:
 
         # Calculate price with 9 bps offset from mark price
         if side.lower() == 'buy':
-            order_price = mark_price * (Decimal('1') - self.STANDX_OFFSET_BPS)
+            order_price = mark_price * (Decimal('1') - self.offset_bps)
         else:
-            order_price = mark_price * (Decimal('1') + self.STANDX_OFFSET_BPS)
+            order_price = mark_price * (Decimal('1') + self.offset_bps)
 
         order_price = self.round_to_tick(order_price)
 
@@ -551,9 +550,9 @@ class HedgeBot:
                 # Check if price has moved - use mark price for comparison
                 new_mark_price = await self.fetch_standx_mark_price()
                 if side.lower() == 'buy':
-                    current_price = new_mark_price * (Decimal('1') - self.STANDX_OFFSET_BPS)
+                    current_price = new_mark_price * (Decimal('1') - self.offset_bps)
                 else:
-                    current_price = new_mark_price * (Decimal('1') + self.STANDX_OFFSET_BPS)
+                    current_price = new_mark_price * (Decimal('1') + self.offset_bps)
 
                 current_price = self.round_to_tick(current_price)
 
@@ -840,6 +839,7 @@ if __name__ == "__main__":
     parser.add_argument('--iterations', type=int, default=20, help='Number of trading iterations')
     parser.add_argument('--sleep-time', type=int, default=0, help='Sleep time between iterations')
     parser.add_argument('--max-position', type=str, default='0', help='Maximum position size')
+    parser.add_argument('--offset-bps', type=int, default=9, help='Offset in basis points from mark price (default: 9)')
 
     args = parser.parse_args()
 
@@ -849,7 +849,8 @@ if __name__ == "__main__":
         fill_timeout=args.fill_timeout,
         iterations=args.iterations,
         sleep_time=args.sleep_time,
-        max_position=Decimal(args.max_position)
+        max_position=Decimal(args.max_position),
+        offset_bps=args.offset_bps
     )
 
     asyncio.run(bot.run())

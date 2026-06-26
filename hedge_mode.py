@@ -45,6 +45,7 @@ Examples:
     python hedge_mode.py --exchange edgex --ticker BTC --size 0.001 --iter 20
     python hedge_mode.py --exchange nado --ticker BTC --size 0.003 --iter 20 --max-position 0.05
     python hedge_mode.py --exchange standx --ticker BTC --size 0.003 --iter 20 --max-position 0.05
+    python hedge_mode.py --exchange standx-mm --ticker BTC --size 0.003 --iter 20 --offset-bps 9
         """
     )
     
@@ -66,13 +67,15 @@ Examples:
                         help='Maximum position to hold (default: 0)')
     parser.add_argument('--v2', action='store_true',
                         help='Use v2 implementation (currently only supported for grvt exchange)')
+    parser.add_argument('--offset-bps', type=int, default=9,
+                        help='Offset in basis points from mark price (default: 9, standx only)')
     
     return parser.parse_args()
 
 
 def validate_exchange(exchange):
     """Validate that the exchange is supported."""
-    supported_exchanges = ['backpack', 'extended', 'apex', 'grvt', 'edgex', 'nado', 'standx']
+    supported_exchanges = ['backpack', 'extended', 'apex', 'grvt', 'edgex', 'nado', 'standx', 'standx-mm']
     if exchange.lower() not in supported_exchanges:
         print(f"Error: Unsupported exchange '{exchange}'")
         print(f"Supported exchanges: {', '.join(supported_exchanges)}")
@@ -106,6 +109,9 @@ def get_hedge_bot_class(exchange, v2=False):
         elif exchange.lower() == 'standx':
             from hedge.hedge_mode_standx import HedgeBot
             return HedgeBot
+        elif exchange.lower() == 'standx-mm':
+            from hedge.hedge_mode_standx_mm import MMBot
+            return MMBot
         else:
             raise ValueError(f"Unsupported exchange: {exchange}")
     except ImportError as e:
@@ -152,7 +158,7 @@ async def main():
                 fill_timeout=args.fill_timeout,
                 max_position=args.max_position
             )
-        elif args.exchange in ['backpack', 'edgex', 'nado', 'grvt', 'standx']:
+        elif args.exchange in ['backpack', 'edgex', 'nado', 'grvt']:
             bot = HedgeBotClass(
                 ticker=args.ticker.upper(),
                 order_quantity=Decimal(args.size),
@@ -160,6 +166,24 @@ async def main():
                 iterations=args.iter,
                 sleep_time=args.sleep,
                 max_position=args.max_position
+            )
+        elif args.exchange == 'standx':
+            bot = HedgeBotClass(
+                ticker=args.ticker.upper(),
+                order_quantity=Decimal(args.size),
+                fill_timeout=args.fill_timeout,
+                iterations=args.iter,
+                sleep_time=args.sleep,
+                max_position=args.max_position,
+                offset_bps=args.offset_bps
+            )
+        elif args.exchange == 'standx-mm':
+            bot = HedgeBotClass(
+                ticker=args.ticker.upper(),
+                order_quantity=Decimal(args.size),
+                fill_timeout=args.fill_timeout,
+                iterations=args.iter,
+                offset_bps=args.offset_bps
             )
         else:
             bot = HedgeBotClass(

@@ -20,6 +20,7 @@ class ExchangeFactory:
         'apex': 'exchanges.apex.ApexClient',
         'nado': 'exchanges.nado.NadoClient',
         'standx': 'exchanges.standx.StandXClient',
+        'hyperliquid': 'exchanges.hyperliquid.HyperliquidClient',
     }
 
     @classmethod

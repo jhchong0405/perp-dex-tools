@@ -274,8 +274,9 @@ class StandXWebSocketManager:
         elif channel == 'order':
             await self._handle_order_update(data.get('data', {}))
         elif channel == 'auth':
-            code = data.get('data', {}).get('code', 0)
-            if code != 200:
+            code = data.get('data', {}).get('code')
+            # code 0 means success for StandX auth
+            if code != 0:
                 if self.logger:
                     self.logger.log(f"WebSocket auth failed: {data}", "ERROR")
             else:
@@ -472,9 +473,15 @@ class StandXClient(BaseExchangeClient):
         try:
             if method == "GET":
                 async with self.http_session.get(url, headers=headers, params=params) as resp:
+                    if resp.status >= 400:
+                        text = await resp.text()
+                        raise ValueError(f"HTTP {resp.status}: {text[:200]}")
                     return await resp.json()
             elif method == "POST":
                 async with self.http_session.post(url, headers=headers, data=payload) as resp:
+                    if resp.status >= 400:
+                        text = await resp.text()
+                        raise ValueError(f"HTTP {resp.status}: {text[:200]}")
                     return await resp.json()
         except Exception as e:
             if self.logger:
@@ -720,14 +727,17 @@ class StandXClient(BaseExchangeClient):
 
     @query_retry(default_return=Decimal('0'))
     async def get_account_positions(self) -> Decimal:
-        """Get account positions."""
+        """Get account positions. Returns positive for long, negative for short."""
         result = await self._make_request("GET", "/api/query_positions",
                                           params={"symbol": self.config.contract_id})
 
         for position in result if isinstance(result, list) else []:
             if position.get('symbol', '') == self.config.contract_id:
                 qty = Decimal(position.get('qty', '0'))
-                # StandX uses positive qty, side determines direction
+                side = position.get('side', 'buy').lower()
+                # Short positions are negative
+                if side == 'sell':
+                    return -qty
                 return qty
 
         return Decimal('0')
